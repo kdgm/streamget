@@ -312,7 +312,10 @@ url_fopen(char *url, const char *operation, char *useragent)
         }
         curl_easy_setopt(file->handle.curl, CURLOPT_STDERR, stdout); /* send verbose and progress to stdout */
         curl_easy_setopt(file->handle.curl, CURLOPT_FAILONERROR, 1); /* fail  on error codes > 300 */
-        curl_easy_setopt(file->handle.curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1); /* HTTP/2 redirects stall in fill_buffer() */
+        /* keep HTTP/1.1 as with older libcurl; fill_buffer() does not call
+         * curl_multi_perform() on select() timeout, so timer-driven steps
+         * (e.g. an HTTP/2 redirect) never progress */
+        curl_easy_setopt(file->handle.curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
 #if 0
 	curl_easy_setopt(file->handle.curl, CURLOPT_FRESH_CONNECT, 1);  /* new connection every time */
