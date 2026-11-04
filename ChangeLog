@@ -2,7 +2,6 @@
 
 	* version 2.2
 	* [fix] no data recorded from HTTP/2 redirects on libcurl 7.88+: wait with curl_multi_wait() so curl timers are honoured
-	* [fix] exit with status 3 when nothing was recorded
 
 2026-01-21 Klaas Jan Wierenga   <k.j.wierenga@kerkdienstgemist.nl>
 
