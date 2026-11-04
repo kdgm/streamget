@@ -136,7 +136,12 @@ write_callback(char *buffer,
 static int
 fill_buffer(URL_FILE *file, int want, int waittime)
 {
-    int numfds;
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    int maxfd;
+    struct timeval timeout;
+    int rc;
 
     /* only attempt to fill buffer if transactions still running and buffer
      * doesnt exceed required size already
@@ -147,16 +152,54 @@ fill_buffer(URL_FILE *file, int want, int waittime)
     /* attempt to fill buffer */
     do
     {
-        /* Wait for socket activity or for curl's own timers to expire.
-         * Unlike select() on curl_multi_fdset(), curl_multi_wait() honours
-         * curl's internal timeouts, which are needed to drive e.g. an HTTP/2
-         * redirect to completion. Without it the transfer stalls and no data
-         * is ever delivered. */
-        numfds = 0;
-        curl_multi_wait(multi_handle, NULL, 0, SELECT_TIMEOUT * 1000, &numfds);
-        while (curl_multi_perform(multi_handle, &file->still_running) ==
-               CURLM_CALL_MULTI_PERFORM)
-            ;
+        FD_ZERO(&fdread);
+        FD_ZERO(&fdwrite);
+        FD_ZERO(&fdexcep);
+
+        /* set a suitable timeout to fail on */
+        timeout.tv_sec = SELECT_TIMEOUT;
+        timeout.tv_usec = 0;
+
+        /* get file descriptors from the transfers */
+        curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+        /* According to libcurl docs, maxfd can be -1 when using internal timers.
+         * In this case, we should sleep briefly and call curl_multi_perform. */
+        if (maxfd == -1)
+        {
+            /* No file descriptors, curl is using internal timers.
+             * Sleep for 100ms and let curl process. */
+            struct timeval wait = {0, 100000}; /* 100ms */
+            select(0, NULL, NULL, NULL, &wait);
+            while (curl_multi_perform(multi_handle, &file->still_running) ==
+                   CURLM_CALL_MULTI_PERFORM)
+                ;
+        }
+        else
+        {
+            rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+
+            switch (rc)
+            {
+            case -1:
+                /* select error */
+                break;
+
+            case 0:
+                break;
+
+            default:
+                /* timeout or readable/writable sockets */
+                /* note we *could* be more efficient and not wait for
+                 * CURLM_CALL_MULTI_PERFORM to clear here and check it on re-entry
+                 * but that gets messy */
+                while (curl_multi_perform(multi_handle, &file->still_running) ==
+                       CURLM_CALL_MULTI_PERFORM)
+                    ;
+
+                break;
+            }
+        }
     } while (file->still_running && (file->buffer_pos < want));
     return 1;
 }
@@ -269,6 +312,7 @@ url_fopen(char *url, const char *operation, char *useragent)
         }
         curl_easy_setopt(file->handle.curl, CURLOPT_STDERR, stdout); /* send verbose and progress to stdout */
         curl_easy_setopt(file->handle.curl, CURLOPT_FAILONERROR, 1); /* fail  on error codes > 300 */
+        curl_easy_setopt(file->handle.curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1); /* HTTP/2 redirects stall in fill_buffer() */
 
 #if 0
 	curl_easy_setopt(file->handle.curl, CURLOPT_FRESH_CONNECT, 1);  /* new connection every time */
