@@ -177,6 +177,9 @@ static int sg_mainloop(void);
 /* global variables */
 static char *g_useragent = "Streamget/" VERSION " (" GIT_REF ")";
 
+/* set once data has been written to the output file; read by the SIGALRM handler */
+static volatile sig_atomic_t g_recorded = 0;
+
 /* global variable to hold options */
 static StreamgetOptions g_options = {
     NULL, /* no URL specified */
@@ -465,7 +468,8 @@ static void sg_alrm(int signo)
              g_options.time_limit, ctime(&now));
     fsync(fileno(stdout));
   }
-  exit(EXIT_SUCCESS);
+  /* a recording without any data is a failure */
+  exit(g_recorded ? EXIT_SUCCESS : 3);
 }
 
 /*
@@ -629,6 +633,7 @@ int sg_mainloop(void)
           goto exit;
         }
         nwritten += nwritten_now;
+        g_recorded = 1;
         nread = url_fread(buffer, 1, sizeof(buffer), handle);
       }
     }
@@ -667,6 +672,7 @@ int sg_mainloop(void)
                  "Connect period of %d seconds expired. "
                  "Failed to open URL '%s'.\n",
                  g_options.connect_period, g_options.url);
+        retval = 3; /* nothing recorded */
         state = DONE;
       }
       else
