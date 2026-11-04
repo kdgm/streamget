@@ -1,3 +1,8 @@
+2026-11-04 Nico Bijl   <nico@donkeymobile.app>
+
+	* version 2.2
+	* [fix] no data recorded from HTTP/2 redirects on libcurl 7.88+: use HTTP/1.1
+
 2026-01-21 Klaas Jan Wierenga   <k.j.wierenga@kerkdienstgemist.nl>
 
 	* version 2.1
