@@ -15,11 +15,13 @@ jobs:
     container: debian:bookworm
 
     steps:
-      - uses: actions/checkout@v4
+      # before checkout: without git, checkout downloads an archive and GIT_REF ends up empty
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends build-essential autoconf automake libtool pkg-config libcurl4-openssl-dev
+          apt-get install -y --no-install-recommends build-essential autoconf automake libtool pkg-config libcurl4-openssl-dev git ca-certificates
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/checkout@v4
       - name: autogen
         run: ./autogen.sh
       - name: configure
