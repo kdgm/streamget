@@ -15,7 +15,8 @@ streamget_SOURCES = \
 BUILT_SOURCES = \
 	git-ref.h
 	
-GIT_REF = $(shell git rev-parse --short --verify `git symbolic-ref -q HEAD`)
+# HEAD is detached in CI and when building a tag, so do not go through the branch ref
+GIT_REF = $(shell git rev-parse --short HEAD 2>/dev/null)
 
 git-ref.h: FORCE
 	echo "#define GIT_REF \"$(GIT_REF)\"" > git-ref.h
